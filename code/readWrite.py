@@ -1,8 +1,9 @@
 import serial
 import math
+import json
 import serial.tools.list_ports
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 
 # 调试开关
 DEBUG = True
@@ -35,46 +36,58 @@ def receive_data(ser, length):
     debug_print(f"Received data: {data.hex().upper()}")
     return data
 
-# CTCSS标准码
+# CTCSS标准码 (添加 OFF 选项)
 CTCSS_CODES = [
-    67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8,
+    "OFF", 67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8,
     97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
     136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2,
-    192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3, 3000
+    192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3
 ]
-nummmm=0;
+
+nummmm = 0
+
 # 处理配置信息
 def process_config_data(data):
-    global nummmm;
-    nummmm = nummmm +1;
+    global nummmm
+    nummmm = nummmm + 1
+    
     recv_freq_hex = data[4:7][::-1].hex().upper()
     recv_freq_dec = (int(recv_freq_hex, 16) - 6445568) / 10**5 + 400
     
     send_freq_hex = data[8:11][::-1].hex().upper()
     send_freq_dec = (int(send_freq_hex, 16) - 6445568) / 10**5 + 400
     
-    recv_cts_temp_2 = int.from_bytes(data[12:13], byteorder='big')
-    recv_cts_temp_1 = int.from_bytes(data[13:14], byteorder='big')
-    recv_cts = (recv_cts_temp_2 % 16 + math.floor(recv_cts_temp_2/16) * 10 + (recv_cts_temp_1 % 16) * 100 +  math.floor(recv_cts_temp_1/16) * 1000)/10
+    # 处理接收 CTCSS (检查是否为 OFF)
+    if data[12:14] == b'\xFF\xFF':
+        recv_cts = "OFF"
+    else:
+        recv_cts_temp_2 = int.from_bytes(data[12:13], byteorder='big')
+        recv_cts_temp_1 = int.from_bytes(data[13:14], byteorder='big')
+        recv_cts = (recv_cts_temp_2 % 16 + math.floor(recv_cts_temp_2/16) * 10 + 
+                   (recv_cts_temp_1 % 16) * 100 + math.floor(recv_cts_temp_1/16) * 1000) / 10
     
-    send_cts_temp_2 = int.from_bytes(data[14:15], byteorder='big')
-    send_cts_temp_1 = int.from_bytes(data[15:16], byteorder='big')
-    send_cts = (send_cts_temp_2 % 16 + math.floor(send_cts_temp_2/16) * 10 + (send_cts_temp_1 % 16) * 100 +  math.floor(send_cts_temp_1/16) * 1000)/10
-    
+    # 处理发送 CTCSS (检查是否为 OFF)
+    if data[14:16] == b'\xFF\xFF':
+        send_cts = "OFF"
+    else:
+        send_cts_temp_2 = int.from_bytes(data[14:15], byteorder='big')
+        send_cts_temp_1 = int.from_bytes(data[15:16], byteorder='big')
+        send_cts = (send_cts_temp_2 % 16 + math.floor(send_cts_temp_2/16) * 10 + 
+                   (send_cts_temp_1 % 16) * 100 + math.floor(send_cts_temp_1/16) * 1000) / 10
     
     control_byte = data[16]
     if control_byte == 0xEA:
-        busy_lock, encryption, frequency_hop =1,0,0
+        busy_lock, encryption, frequency_hop = 1, 0, 0
     elif control_byte == 0x6A:
-        busy_lock, encryption, frequency_hop =1,0,1
+        busy_lock, encryption, frequency_hop = 1, 0, 1
     elif control_byte == 0x4B:
-        busy_lock, encryption, frequency_hop =0,1,1
+        busy_lock, encryption, frequency_hop = 0, 1, 1
     elif control_byte == 0xEB:
-        busy_lock, encryption, frequency_hop =0,0,0
+        busy_lock, encryption, frequency_hop = 0, 0, 0
     elif control_byte == 0x6B:
-        busy_lock, encryption, frequency_hop =0,0,1
+        busy_lock, encryption, frequency_hop = 0, 0, 1
     else:
-        busy_lock, encryption, frequency_hop =0,1,0
+        busy_lock, encryption, frequency_hop = 0, 1, 0
     
     return {
         'recv_freq': recv_freq_dec,
@@ -90,6 +103,7 @@ def process_config_data(data):
 def generate_configuration(user_input):
     config_data = []
     array = [0xEB, 0x6B, 0xCB, 0x4B, 0xEA, 0x6A]
+    
     for i, channel in enumerate(user_input):
         recv_freq = int((channel['recv_freq'] - 400) * 10**5 + 6445568)
         recv_freq_hex = recv_freq.to_bytes(3, byteorder='big')[::-1]
@@ -97,37 +111,34 @@ def generate_configuration(user_input):
         send_freq = int((channel['send_freq'] - 400) * 10**5 + 6445568)
         send_freq_hex = send_freq.to_bytes(3, byteorder='big')[::-1]
 
-        recv_cts_integer = int(channel['recv_ctcss'] * 10)
-        if recv_cts_integer>3000:
-            recv_ctcss_hex=bytes([0xFF, 0xFF])
+        # 处理接收 CTCSS (支持 OFF)
+        if channel['recv_ctcss'] == "OFF" or channel['recv_ctcss'] == 0:
+            recv_ctcss_hex = bytes([0xFF, 0xFF])
         else:
-            # 计算接收 CTS 值的字节序列
+            recv_cts_integer = int(float(channel['recv_ctcss']) * 10)
             recv_cts_temp_1 = recv_cts_integer // 100
             recv_cts_temp_2 = recv_cts_integer % 100
-            recv_ctcss_hex_1 = recv_cts_temp_1%10+math.floor(recv_cts_temp_1/10)*16
-            recv_ctcss_hex_2 = recv_cts_temp_2%10+math.floor(recv_cts_temp_2/10)*16
-            recv_ctcss_hex = bytes([recv_ctcss_hex_2,recv_ctcss_hex_1])
+            recv_ctcss_hex_1 = recv_cts_temp_1 % 10 + math.floor(recv_cts_temp_1/10) * 16
+            recv_ctcss_hex_2 = recv_cts_temp_2 % 10 + math.floor(recv_cts_temp_2/10) * 16
+            recv_ctcss_hex = bytes([recv_ctcss_hex_2, recv_ctcss_hex_1])
 
-        send_cts_integer = int(channel['send_ctcss'] * 10)
-        if send_cts_integer>1000:
-            send_ctcss_hex=bytes([0xFF, 0xFF])
+        # 处理发送 CTCSS (支持 OFF)
+        if channel['send_ctcss'] == "OFF" or channel['send_ctcss'] == 0:
+            send_ctcss_hex = bytes([0xFF, 0xFF])
         else:
-            # 计算接收 CTS 值的字节序列
+            send_cts_integer = int(float(channel['send_ctcss']) * 10)
             send_cts_temp_1 = send_cts_integer // 100
             send_cts_temp_2 = send_cts_integer % 100
-            send_ctcss_hex_1 = send_cts_temp_1%10+math.floor(send_cts_temp_1/10)*16
-            send_ctcss_hex_2 = send_cts_temp_2%10+math.floor(send_cts_temp_2/10)*16
-            send_ctcss_hex = bytes([send_ctcss_hex_2,send_ctcss_hex_1])
+            send_ctcss_hex_1 = send_cts_temp_1 % 10 + math.floor(send_cts_temp_1/10) * 16
+            send_ctcss_hex_2 = send_cts_temp_2 % 10 + math.floor(send_cts_temp_2/10) * 16
+            send_ctcss_hex = bytes([send_ctcss_hex_2, send_ctcss_hex_1])
 
-        # 假设 channel 是一个字典，包含 'busy_lock'、'encryption' 和 'frequency_hop'
         busy_lock = int(channel['busy_lock'])
         encryption = int(channel['encryption'])
         frequency_hop = int(channel['frequency_hop'])
         
-        # 将它们组合成一个三位的整数
         control_byte = (busy_lock << 2) | (encryption << 1) | frequency_hop
 
-        # control_byte = ((int(channel['busy_lock']) << 2) |(int(channel['encryption']) < 1) |int(channel['frequency_hop']))
         config_data.append(
             b'\x57\x00' + bytes([i*13]) + b'\x0D' + recv_freq_hex + b'\x02' +
             send_freq_hex + b'\x02' + recv_ctcss_hex + send_ctcss_hex + bytes([array[control_byte]]))
@@ -149,10 +160,10 @@ def write_configuration(ser, config_data):
 def read_configuration(ser):
     global config_data_global
     config_data = []
-    index = 0x00  # 起始序号
+    index = 0x00
 
     for i in range(18):
-        send_data(ser, bytes([0x52, 0x00, index, 0x0D]))  # 发送52 00 xx 0D
+        send_data(ser, bytes([0x52, 0x00, index, 0x0D]))
         response = receive_data(ser, 17)
         config_data_global.append(response)
         if response.startswith(b'\x57\x00'):
@@ -161,27 +172,40 @@ def read_configuration(ser):
             debug_print(f"Unexpected response for index {index}: {response.hex().upper()}")
             return None
         
-        index += 13  # 每次序号增加13
+        index += 13
 
     return config_data
 
 # UI相关函数
 def update_ui(config_data):
-
-
     for i, data in enumerate(config_data):
         recv_freq_vars[i].set(f"{data['recv_freq']:.3f}")
         send_freq_vars[i].set(f"{data['send_freq']:.3f}")
-        recv_ctcss_vars[i].set(f"{data['recv_cts']:.1f}")
-        send_ctcss_vars[i].set(f"{data['send_cts']:.1f}")
+        
+        # 处理 CTCSS 显示 (支持 OFF)
+        recv_cts_value = data['recv_cts']
+        if recv_cts_value == "OFF":
+            recv_ctcss_vars[i].set("OFF")
+        else:
+            recv_ctcss_vars[i].set(f"{recv_cts_value:.1f}")
+        
+        send_cts_value = data['send_cts']
+        if send_cts_value == "OFF":
+            send_ctcss_vars[i].set("OFF")
+        else:
+            send_ctcss_vars[i].set(f"{send_cts_value:.1f}")
+        
         busy_vars[i].set(data['busy_lock'])
         encryption_vars[i].set(data['encryption'])
         freq_hop_vars[i].set(data['frequency_hop'])
         if i == 15:
             break
-config_data_global=[]
+
+config_data_global = []
+
 def start_reading():
     global config_data_global
+    config_data_global = []
     port = port_combobox.get()
     if not port:
         messagebox.showerror("Error", "Please select a serial port")
@@ -201,6 +225,7 @@ def start_reading():
         response = receive_data(ser, 1)
         if response != b'\x06':
             messagebox.showerror("Error", "Failed to communicate with the device")
+            ser.close()
             return
     
     send_data(ser, b'\x02')
@@ -223,6 +248,7 @@ def start_reading():
                     
                     if config_data:
                         update_ui(config_data)
+                        messagebox.showinfo("Success", "Configuration read successfully")
                     else:
                         messagebox.showerror("Error", "Failed to read configuration data")
                 else:
@@ -238,6 +264,11 @@ def start_reading():
 
 def start_writing():
     global config_data_global
+    
+    if len(config_data_global) < 18:
+        messagebox.showerror("Error", "Please read configuration first before writing")
+        return
+    
     port = port_combobox.get()
     if not port:
         messagebox.showerror("Error", "Please select a serial port")
@@ -251,11 +282,14 @@ def start_writing():
     # 生成用户配置数据
     user_input = []
     for i in range(16):
+        recv_ctcss_val = recv_ctcss_vars[i].get()
+        send_ctcss_val = send_ctcss_vars[i].get()
+        
         user_input.append({
             'recv_freq': float(recv_freq_vars[i].get()),
             'send_freq': float(send_freq_vars[i].get()),
-            'recv_ctcss': float(recv_ctcss_vars[i].get()),
-            'send_ctcss': float(send_ctcss_vars[i].get()),
+            'recv_ctcss': recv_ctcss_val,
+            'send_ctcss': send_ctcss_val,
             'busy_lock': busy_vars[i].get(),
             'encryption': encryption_vars[i].get(),
             'frequency_hop': freq_hop_vars[i].get()
@@ -276,6 +310,7 @@ def start_writing():
         response = receive_data(ser, 1)
         if response != b'\x06':
             messagebox.showerror("Error", "Failed to communicate with the device")
+            ser.close()
             return
     
     send_data(ser, b'\x02')
@@ -296,9 +331,11 @@ def start_writing():
                 if response == b'\x06':
                     # 写入配置
                     if write_configuration(ser, generated_config):
-                         messagebox.showinfo("Success", "Configuration written successfully")
+                        messagebox.showinfo("Success", "Configuration written successfully")
                     else:
-                        messagebox.showerror("Error", "Failed during final handshake")
+                        messagebox.showerror("Error", "Failed to write configuration")
+                else:
+                    messagebox.showerror("Error", "Failed during final handshake")
             else:
                 messagebox.showerror("Error", "Unexpected response after sending 0x05")
         else:
@@ -310,7 +347,7 @@ def start_writing():
 
 # 创建UI
 root = tk.Tk()
-root.title("Configuration Reader and Writer")
+root.title("TGA1 Configuration Reader and Writer")
 
 frame = tk.Frame(root)
 frame.pack(padx=10, pady=10)
@@ -319,7 +356,7 @@ port_label = tk.Label(frame, text="Select Serial Port:")
 port_label.grid(row=0, column=0, columnspan=2)
 
 # 串口选择下拉列表
-port_combobox = ttk.Combobox(frame, values=get_serial_ports())
+port_combobox = ttk.Combobox(frame, values=get_serial_ports(), width=15)
 port_combobox.grid(row=0, column=2, columnspan=2)
 
 read_button = tk.Button(frame, text="Read Configuration", command=start_reading)
@@ -344,36 +381,36 @@ freq_hop_vars = []
 
 # 为16个信道生成输入框
 for i in range(16):
-    tk.Label(frame, text=f"Channel {i+1}").grid(row=i+2, column=0)
+    tk.Label(frame, text=f"CH {i+1}").grid(row=i+2, column=0)
 
     recv_freq_var = tk.StringVar(value="400.000")
     recv_freq_vars.append(recv_freq_var)
-    tk.Entry(frame, textvariable=recv_freq_var).grid(row=i+2, column=1)
+    tk.Entry(frame, textvariable=recv_freq_var, width=12).grid(row=i+2, column=1)
 
-    recv_ctcss_var = tk.StringVar(value=str(CTCSS_CODES[0]))
+    recv_ctcss_var = tk.StringVar(value="OFF")
     recv_ctcss_vars.append(recv_ctcss_var)
-    recv_ctcss_menu = ttk.Combobox(frame, values=CTCSS_CODES, textvariable=recv_ctcss_var)
+    recv_ctcss_menu = ttk.Combobox(frame, values=CTCSS_CODES, textvariable=recv_ctcss_var, width=10)
     recv_ctcss_menu.grid(row=i+2, column=2)
 
     send_freq_var = tk.StringVar(value="400.000")
     send_freq_vars.append(send_freq_var)
-    tk.Entry(frame, textvariable=send_freq_var).grid(row=i+2, column=3)
+    tk.Entry(frame, textvariable=send_freq_var, width=12).grid(row=i+2, column=3)
 
-    send_ctcss_var = tk.StringVar(value=str(CTCSS_CODES[0]))
+    send_ctcss_var = tk.StringVar(value="OFF")
     send_ctcss_vars.append(send_ctcss_var)
-    send_ctcss_menu = ttk.Combobox(frame, values=CTCSS_CODES, textvariable=send_ctcss_var)
+    send_ctcss_menu = ttk.Combobox(frame, values=CTCSS_CODES, textvariable=send_ctcss_var, width=10)
     send_ctcss_menu.grid(row=i+2, column=4)
 
     busy_var = tk.StringVar(value="0")
     busy_vars.append(busy_var)
-    tk.Checkbutton(frame, text="Busy Lock", variable=busy_var, onvalue="1", offvalue="0").grid(row=i+2, column=5)
+    tk.Checkbutton(frame, variable=busy_var, onvalue="1", offvalue="0").grid(row=i+2, column=5)
 
     encryption_var = tk.StringVar(value="0")
     encryption_vars.append(encryption_var)
-    tk.Checkbutton(frame, text="Encryption", variable=encryption_var, onvalue="1", offvalue="0").grid(row=i+2, column=6)
+    tk.Checkbutton(frame, variable=encryption_var, onvalue="1", offvalue="0").grid(row=i+2, column=6)
 
     freq_hop_var = tk.StringVar(value="0")
     freq_hop_vars.append(freq_hop_var)
-    tk.Checkbutton(frame, text="Freq Hop", variable=freq_hop_var, onvalue="1", offvalue="0").grid(row=i+2, column=7)
+    tk.Checkbutton(frame, variable=freq_hop_var, onvalue="1", offvalue="0").grid(row=i+2, column=7)
 
 root.mainloop()
