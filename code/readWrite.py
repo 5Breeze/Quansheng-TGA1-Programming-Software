@@ -345,6 +345,88 @@ def start_writing():
     
     ser.close()
 
+# --- JSON İçe/Dışa Aktarma Fonksiyonları --- # <-- YENİ EKLENDİ (TÜM BLOK)
+
+def save_config_to_json():
+    """Arayüzdeki mevcut 16 kanal ayarını bir JSON dosyasına kaydeder."""
+    
+    # Arayüzdeki verileri 'user_input' formatına getir
+    config_to_save = []
+    for i in range(16):
+        recv_ctcss_val = recv_ctcss_vars[i].get()
+        send_ctcss_val = send_ctcss_vars[i].get()
+        
+        config_to_save.append({
+            'recv_freq': float(recv_freq_vars[i].get()),
+            'send_freq': float(send_freq_vars[i].get()),
+            'recv_ctcss': recv_ctcss_val,
+            'send_ctcss': send_ctcss_val,
+            'busy_lock': busy_vars[i].get(),
+            'encryption': encryption_vars[i].get(),
+            'frequency_hop': freq_hop_vars[i].get()
+        })
+    
+    # Dosya kaydetme diyaloğunu aç
+    try:
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Ayarları JSON Olarak Kaydet",
+            initialfile="config.json"
+        )
+        
+        if not filename:
+            # Kullanıcı iptal etti
+            return
+
+        # Dosyaya JSON olarak yaz
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(config_to_save, f, indent=4)
+        
+        messagebox.showinfo("Başarılı", f"Ayarlar başarıyla kaydedildi:\n{filename}")
+        
+    except Exception as e:
+        messagebox.showerror("Hata", f"Dosya kaydedilemedi: {e}")
+
+def load_config_from_json():
+    """Bir JSON dosyasından 16 kanal ayarını okur ve arayüze yükler."""
+    
+    try:
+        filename = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Ayarları JSON Dosyasından Yükle"
+        )
+        
+        if not filename:
+            # Kullanıcı iptal etti
+            return
+
+        # Dosyadan JSON verisini oku
+        with open(filename, 'r', encoding='utf-8') as f:
+            loaded_data = json.load(f)
+        
+        # Veri formatını doğrula (basit kontrol)
+        if not isinstance(loaded_data, list) or len(loaded_data) != 16:
+            raise ValueError("Geçersiz dosya formatı veya 16 kanal verisi bulunamadı.")
+        
+        # Veriyi arayüzdeki değişkenlere (StringVar) ata
+        for i, channel_data in enumerate(loaded_data):
+            recv_freq_vars[i].set(str(channel_data['recv_freq']))
+            send_freq_vars[i].set(str(channel_data['send_freq']))
+            recv_ctcss_vars[i].set(str(channel_data['recv_ctcss']))
+            send_ctcss_vars[i].set(str(channel_data['send_ctcss']))
+            busy_vars[i].set(str(channel_data['busy_lock']))
+            encryption_vars[i].set(str(channel_data['encryption']))
+            freq_hop_vars[i].set(str(channel_data['frequency_hop']))
+        
+        messagebox.showinfo("Başarılı", "Ayarlar dosyadan başarıyla yüklendi.")
+        
+    except Exception as e:
+        messagebox.showerror("Hata", f"Dosya yüklenemedi: {e}")
+
+# --- JSON Fonksiyonları Bitişi --- #
+
+
 # UI related functions
 root = tk.Tk()
 root.title("TGA1 Configuration Reader and Writer")
@@ -360,15 +442,23 @@ port_combobox = ttk.Combobox(frame, values=get_serial_ports(), width=15)
 port_combobox.grid(row=0, column=2, columnspan=2)
 
 read_button = tk.Button(frame, text="Read Configuration", command=start_reading)
-read_button.grid(row=0, column=4)
+read_button.grid(row=0, column=4, padx=2) # <-- DEĞİŞTİRİLDİ (padx eklendi)
 
 write_button = tk.Button(frame, text="Write Configuration", command=start_writing)
-write_button.grid(row=0, column=5)
+write_button.grid(row=0, column=5, padx=2) # <-- DEĞİŞTİRİLDİ (padx eklendi)
+
+# --- YENİ BUTONLAR --- # <-- YENİ EKLENDİ (TÜM BLOK)
+load_json_button = tk.Button(frame, text="Load from JSON", command=load_config_from_json)
+load_json_button.grid(row=0, column=6, padx=2)
+
+save_json_button = tk.Button(frame, text="Save to JSON", command=save_config_to_json)
+save_json_button.grid(row=0, column=7, padx=2)
+# --- YENİ BUTONLAR BİTİŞİ --- #
 
 # Column Labels
 labels = ["Channel", "Recv Frequency (MHz)", "Recv CTCSS", "Send Frequency (MHz)", "Send CTCSS", "Busy Lock", "Encryption", "Freq Hop"]
 for col, text in enumerate(labels):
-    tk.Label(frame, text=text).grid(row=1, column=col)
+    tk.Label(frame, text=text).grid(row=1, column=col, padx=5, pady=5) # <-- DEĞİŞTİRİLDİ (padx/pady eklendi)
 
 # Input box and drop-down menu variables
 recv_freq_vars = []
