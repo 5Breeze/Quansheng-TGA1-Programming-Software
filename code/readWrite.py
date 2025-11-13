@@ -179,8 +179,8 @@ def read_configuration(ser):
 # UI related functions
 def update_ui(config_data):
     for i, data in enumerate(config_data):
-        recv_freq_vars[i].set(f"{data['recv_freq']:.3f}")
-        send_freq_vars[i].set(f"{data['send_freq']:.3f}")
+        recv_freq_vars[i].set(f"{data['recv_freq']:.5f}")
+        send_freq_vars[i].set(f"{data['send_freq']:.5f}")
         
         # Process CTCSS display (Supports OFF)
         recv_cts_value = data['recv_cts']
@@ -345,7 +345,7 @@ def start_writing():
     
     ser.close()
 
-# --- JSON İçe/Dışa Aktarma Fonksiyonları --- # <-- YENİ EKLENDİ (TÜM BLOK)
+# --- JSON İçe/Dışa Aktarma Fonksiyonları --- #
 
 def save_config_to_json():
     """Arayüzdeki mevcut 16 kanal ayarını bir JSON dosyasına kaydeder."""
@@ -411,8 +411,8 @@ def load_config_from_json():
         
         # Veriyi arayüzdeki değişkenlere (StringVar) ata
         for i, channel_data in enumerate(loaded_data):
-            recv_freq_vars[i].set(str(channel_data['recv_freq']))
-            send_freq_vars[i].set(str(channel_data['send_freq']))
+            recv_freq_vars[i].set(f"{float(channel_data['recv_freq']):.5f}")
+            send_freq_vars[i].set(f"{float(channel_data['send_freq']):.5f}")
             recv_ctcss_vars[i].set(str(channel_data['recv_ctcss']))
             send_ctcss_vars[i].set(str(channel_data['send_ctcss']))
             busy_vars[i].set(str(channel_data['busy_lock']))
@@ -442,12 +442,12 @@ port_combobox = ttk.Combobox(frame, values=get_serial_ports(), width=15)
 port_combobox.grid(row=0, column=2, columnspan=2)
 
 read_button = tk.Button(frame, text="Read Configuration", command=start_reading)
-read_button.grid(row=0, column=4, padx=2) # <-- DEĞİŞTİRİLDİ (padx eklendi)
+read_button.grid(row=0, column=4, padx=2)
 
 write_button = tk.Button(frame, text="Write Configuration", command=start_writing)
-write_button.grid(row=0, column=5, padx=2) # <-- DEĞİŞTİRİLDİ (padx eklendi)
+write_button.grid(row=0, column=5, padx=2)
 
-# --- YENİ BUTONLAR --- # <-- YENİ EKLENDİ (TÜM BLOK)
+# --- YENİ BUTONLAR --- #
 load_json_button = tk.Button(frame, text="Load from JSON", command=load_config_from_json)
 load_json_button.grid(row=0, column=6, padx=2)
 
@@ -458,7 +458,7 @@ save_json_button.grid(row=0, column=7, padx=2)
 # Column Labels
 labels = ["Channel", "Recv Frequency (MHz)", "Recv CTCSS", "Send Frequency (MHz)", "Send CTCSS", "Busy Lock", "Encryption", "Freq Hop"]
 for col, text in enumerate(labels):
-    tk.Label(frame, text=text).grid(row=1, column=col, padx=5, pady=5) # <-- DEĞİŞTİRİLDİ (padx/pady eklendi)
+    tk.Label(frame, text=text).grid(row=1, column=col, padx=5, pady=5)
 
 # Input box and drop-down menu variables
 recv_freq_vars = []
@@ -473,7 +473,7 @@ freq_hop_vars = []
 for i in range(16):
     tk.Label(frame, text=f"CH {i+1}").grid(row=i+2, column=0)
 
-    recv_freq_var = tk.StringVar(value="400.000")
+    recv_freq_var = tk.StringVar(value="400.00000")
     recv_freq_vars.append(recv_freq_var)
     tk.Entry(frame, textvariable=recv_freq_var, width=12).grid(row=i+2, column=1)
 
@@ -482,7 +482,7 @@ for i in range(16):
     recv_ctcss_menu = ttk.Combobox(frame, values=CTCSS_CODES, textvariable=recv_ctcss_var, width=10)
     recv_ctcss_menu.grid(row=i+2, column=2)
 
-    send_freq_var = tk.StringVar(value="400.000")
+    send_freq_var = tk.StringVar(value="400.00000")
     send_freq_vars.append(send_freq_var)
     tk.Entry(frame, textvariable=send_freq_var, width=12).grid(row=i+2, column=3)
 
