@@ -5,19 +5,19 @@ import serial.tools.list_ports
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 
-# 调试开关
+# Debug switch
 DEBUG = True
 
 def debug_print(message):
     if DEBUG:
         print(message)
 
-# 获取可用的串口列表
+# Get available serial port list
 def get_serial_ports():
     ports = serial.tools.list_ports.comports()
     return [port.device for port in ports]
 
-# 串口通信相关函数
+# Serial port communication related functions
 def open_serial(port, baudrate=9600):
     try:
         ser = serial.Serial(port, baudrate, timeout=1)
@@ -36,7 +36,7 @@ def receive_data(ser, length):
     debug_print(f"Received data: {data.hex().upper()}")
     return data
 
-# CTCSS标准码 (添加 OFF 选项)
+# CTCSS standard codes (Added OFF option)
 CTCSS_CODES = [
     "OFF", 67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8,
     97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
@@ -46,7 +46,7 @@ CTCSS_CODES = [
 
 nummmm = 0
 
-# 处理配置信息
+# Process configuration data
 def process_config_data(data):
     global nummmm
     nummmm = nummmm + 1
@@ -57,7 +57,7 @@ def process_config_data(data):
     send_freq_hex = data[8:11][::-1].hex().upper()
     send_freq_dec = (int(send_freq_hex, 16) - 6445568) / 10**5 + 400
     
-    # 处理接收 CTCSS (检查是否为 OFF)
+    # Process receive CTCSS (Check if OFF)
     if data[12:14] == b'\xFF\xFF':
         recv_cts = "OFF"
     else:
@@ -66,7 +66,7 @@ def process_config_data(data):
         recv_cts = (recv_cts_temp_2 % 16 + math.floor(recv_cts_temp_2/16) * 10 + 
                    (recv_cts_temp_1 % 16) * 100 + math.floor(recv_cts_temp_1/16) * 1000) / 10
     
-    # 处理发送 CTCSS (检查是否为 OFF)
+    # Process send CTCSS (Check if OFF)
     if data[14:16] == b'\xFF\xFF':
         send_cts = "OFF"
     else:
@@ -99,7 +99,7 @@ def process_config_data(data):
         'frequency_hop': frequency_hop
     }
 
-# 生成配置数据
+# Generate configuration data
 def generate_configuration(user_input):
     config_data = []
     array = [0xEB, 0x6B, 0xCB, 0x4B, 0xEA, 0x6A]
@@ -111,7 +111,7 @@ def generate_configuration(user_input):
         send_freq = int((channel['send_freq'] - 400) * 10**5 + 6445568)
         send_freq_hex = send_freq.to_bytes(3, byteorder='big')[::-1]
 
-        # 处理接收 CTCSS (支持 OFF)
+        # Process receive CTCSS (Supports OFF)
         if channel['recv_ctcss'] == "OFF" or channel['recv_ctcss'] == 0:
             recv_ctcss_hex = bytes([0xFF, 0xFF])
         else:
@@ -122,7 +122,7 @@ def generate_configuration(user_input):
             recv_ctcss_hex_2 = recv_cts_temp_2 % 10 + math.floor(recv_cts_temp_2/10) * 16
             recv_ctcss_hex = bytes([recv_ctcss_hex_2, recv_ctcss_hex_1])
 
-        # 处理发送 CTCSS (支持 OFF)
+        # Process send CTCSS (Supports OFF)
         if channel['send_ctcss'] == "OFF" or channel['send_ctcss'] == 0:
             send_ctcss_hex = bytes([0xFF, 0xFF])
         else:
@@ -145,7 +145,7 @@ def generate_configuration(user_input):
     
     return config_data
 
-# 写入配置
+# Write configuration
 def write_configuration(ser, config_data):
     for i, config in enumerate(config_data):
         send_data(ser, config)
@@ -156,7 +156,7 @@ def write_configuration(ser, config_data):
             return False
     return True
 
-# 读取配置
+# Read configuration
 def read_configuration(ser):
     global config_data_global
     config_data = []
@@ -176,13 +176,13 @@ def read_configuration(ser):
 
     return config_data
 
-# UI相关函数
+# UI related functions
 def update_ui(config_data):
     for i, data in enumerate(config_data):
         recv_freq_vars[i].set(f"{data['recv_freq']:.3f}")
         send_freq_vars[i].set(f"{data['send_freq']:.3f}")
         
-        # 处理 CTCSS 显示 (支持 OFF)
+        # Process CTCSS display (Supports OFF)
         recv_cts_value = data['recv_cts']
         if recv_cts_value == "OFF":
             recv_ctcss_vars[i].set("OFF")
@@ -216,7 +216,7 @@ def start_reading():
         messagebox.showerror("Error", "Failed to open serial port")
         return
     
-    # 开始数据交互
+    # Start data interaction
     send_data(ser, b'\x02\x54\x47\x53\x31\x52\x41\x4D')
     response = receive_data(ser, 1)
     
@@ -279,7 +279,7 @@ def start_writing():
         messagebox.showerror("Error", "Failed to open serial port")
         return
 
-    # 生成用户配置数据
+    # Generate user configuration data
     user_input = []
     for i in range(16):
         recv_ctcss_val = recv_ctcss_vars[i].get()
@@ -297,11 +297,11 @@ def start_writing():
     
     generated_config = generate_configuration(user_input)
 
-    # 用读取到的最后两条数据替换生成配置中的占位符
+    # Replace placeholders in the generated config with the last two read data entries
     generated_config.append(config_data_global[-2])
     generated_config.append(config_data_global[-1])
 
-    # 开始数据交互
+    # Start data interaction
     send_data(ser, b'\x02\x54\x47\x53\x31\x52\x41\x4D')
     response = receive_data(ser, 1)
     
@@ -329,7 +329,7 @@ def start_writing():
                 response = receive_data(ser, 1)
                 
                 if response == b'\x06':
-                    # 写入配置
+                    # Write configuration
                     if write_configuration(ser, generated_config):
                         messagebox.showinfo("Success", "Configuration written successfully")
                     else:
@@ -345,7 +345,7 @@ def start_writing():
     
     ser.close()
 
-# 创建UI
+# UI related functions
 root = tk.Tk()
 root.title("TGA1 Configuration Reader and Writer")
 
@@ -355,7 +355,7 @@ frame.pack(padx=10, pady=10)
 port_label = tk.Label(frame, text="Select Serial Port:")
 port_label.grid(row=0, column=0, columnspan=2)
 
-# 串口选择下拉列表
+# Serial port selection dropdown list
 port_combobox = ttk.Combobox(frame, values=get_serial_ports(), width=15)
 port_combobox.grid(row=0, column=2, columnspan=2)
 
@@ -365,12 +365,12 @@ read_button.grid(row=0, column=4)
 write_button = tk.Button(frame, text="Write Configuration", command=start_writing)
 write_button.grid(row=0, column=5)
 
-# 列标签
+# Column Labels
 labels = ["Channel", "Recv Frequency (MHz)", "Recv CTCSS", "Send Frequency (MHz)", "Send CTCSS", "Busy Lock", "Encryption", "Freq Hop"]
 for col, text in enumerate(labels):
     tk.Label(frame, text=text).grid(row=1, column=col)
 
-# 输入框和下拉菜单变量
+# Input box and drop-down menu variables
 recv_freq_vars = []
 send_freq_vars = []
 recv_ctcss_vars = []
@@ -379,7 +379,7 @@ busy_vars = []
 encryption_vars = []
 freq_hop_vars = []
 
-# 为16个信道生成输入框
+# Generate input boxes for 16 channels
 for i in range(16):
     tk.Label(frame, text=f"CH {i+1}").grid(row=i+2, column=0)
 
