@@ -174,45 +174,14 @@ Serial Communication and Data Configuration Protocol
   * Wait for acknowledgment (06), then proceed with the next set of data.  
   * Repeat until all 18 sets of data are written.
 
-### **CTCSS Codes**
+---
+### CTCSS Codes
 
-The application supports the following CTCSS codes:
+The application supports the following CTCSS codes (Hz). Note: The application's dropdown menu also includes "OFF".
 
-1. 67.0 Hz  
-2. 71.9 Hz  
-3. 74.4 Hz  
-4. 77.0 Hz  
-5. 79.7 Hz  
-6. 82.5 Hz  
-7. 85.4 Hz  
-8. 88.5 Hz  
-9. 91.5 Hz  
-10. 94.8 Hz  
-11. 97.4 Hz  
-12. 100.0 Hz  
-13. 103.5 Hz  
-14. 107.2 Hz  
-15. 110.9 Hz  
-16. 114.8 Hz  
-17. 118.8 Hz  
-18. 123.0 Hz  
-19. 127.3 Hz  
-20. 131.8 Hz  
-21. 136.5 Hz  
-22. 141.3 Hz  
-23. 146.2 Hz  
-24. 151.4 Hz  
-25. 156.7 Hz  
-26. 162.2 Hz  
-27. 167.9 Hz  
-28. 173.8 Hz  
-29. 179.9 Hz  
-30. 186.2 Hz  
-31. 192.8 Hz  
-32. 203.5 Hz  
-33. 210.7 Hz  
-34. 218.1 Hz  
-35. 225.7 Hz  
-36. 233.6 Hz  
-37. 241.8 Hz  
-38. 250.3 Hz
+```text
+67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8,
+97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
+136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2,
+192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3 
+```
