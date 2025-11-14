@@ -1,10 +1,10 @@
-name: Build and Release GUI App
+name: Build and Release TGA1 App
 
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch:
+      - "v*"      # 只在推送 v* 标签时触发
+  workflow_dispatch:  # 可手动触发
 
 jobs:
   build-windows-gui:
@@ -21,14 +21,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyinstaller
+          pip install pyinstaller pyserial
           if (Test-Path "requirements.txt") { pip install -r requirements.txt }
 
       - name: Build GUI EXE
         run: |
           pyinstaller code/readWrite.py --onefile --windowed --name TGA1_App
 
-      - name: Upload EXE as Artifact
+      - name: Upload EXE as artifact
         uses: actions/upload-artifact@v4
         with:
           name: TGA1-App
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: TGA1-App
